@@ -1,7 +1,7 @@
 ---
 # ─── Site identity ────────────────────────────────────────────────────────
 # Must resolve to this VM on every client (local DNS or /etc/hosts).
-gitea_domain: gitea.lan
+gitea_domain: gitea.bell-labs
 gitea_title: "Gitea"
 
 # Addresses Caddy serves; these end up in the certificate SANs.
