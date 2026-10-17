@@ -67,7 +67,7 @@
     owner: root
     group: root
     mode: "0755"
-  notify: restart caddy
+  notify: Restart caddy
 
 - name: Label the Caddy binary for SELinux
   community.general.sefcontext:
@@ -87,8 +87,8 @@
     group: "{{ caddy_group }}"
     mode: "0640"
   notify:
-    - validate caddyfile
-    - restart caddy
+    - Validate caddyfile
+    - Restart caddy
 
 - name: Install the Caddy systemd unit
   ansible.builtin.template:
@@ -97,7 +97,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: restart caddy
+  notify: Restart caddy
 
 - name: Enable and start Caddy
   ansible.builtin.systemd:

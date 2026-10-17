@@ -64,7 +64,7 @@
     owner: root
     group: root
     mode: "0755"
-  notify: restart gitea
+  notify: Restart gitea
 
 - name: Label the Gitea binary for SELinux
   community.general.sefcontext:
@@ -108,7 +108,7 @@
     owner: root
     group: "{{ gitea_group }}"
     mode: "0640"
-  notify: restart gitea
+  notify: Restart gitea
 
 - name: Install the Gitea systemd unit
   ansible.builtin.template:
@@ -117,7 +117,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: restart gitea
+  notify: Restart gitea
 
 - name: Enable and start Gitea
   ansible.builtin.systemd:
