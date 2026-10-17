@@ -68,13 +68,13 @@
   notify: restart caddy
 
 - name: Label the Caddy binary for SELinux
-  ansible.posix.sefcontext:
+  community.general.sefcontext:
     target: "{{ caddy_binary }}"
     setype: bin_t
     state: present
 
 - name: Apply the SELinux label to the Caddy binary
-  ansible.posix.restorecon:
+  community.general.serestorecon:
     path: "{{ caddy_binary }}"
 
 - name: Write the Caddyfile

@@ -67,13 +67,13 @@
   notify: restart gitea
 
 - name: Label the Gitea binary for SELinux
-  ansible.posix.sefcontext:
+  community.general.sefcontext:
     target: "{{ gitea_binary }}"
     setype: bin_t
     state: present
 
 - name: Apply the SELinux label to the Gitea binary
-  ansible.posix.restorecon:
+  community.general.serestorecon:
     path: "{{ gitea_binary }}"
 
 # ── Secrets ───────────────────────────────────────────────────────────────
