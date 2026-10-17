@@ -35,17 +35,19 @@
 
 - name: Pick the checksum of the Caddy tarball
   ansible.builtin.set_fact:
-    caddy_tarball_sha256: >-
-      {{ (caddy_checksums.content.splitlines()
-          | select('search', caddy_tarball_name | regex_escape)
-          | first
-          | regex_search('^[a-fA-F0-9]{64}')) }}
+    caddy_tarball_sha512: >-
+      {{
+        caddy_checksums.content.splitlines()
+        | select('search', '^\s*[a-fA-F0-9]{128}\s+\*?' ~ (caddy_tarball_name | regex_escape) ~ '$')
+        | first
+        | regex_search('[a-fA-F0-9]{128}')
+      }}
 
 - name: Download Caddy {{ caddy_version }}
   ansible.builtin.get_url:
     url: "{{ caddy_download_url }}"
     dest: "{{ caddy_src_dir }}/{{ caddy_tarball_name }}"
-    checksum: "sha512:{{ caddy_tarball_sha256 }}"
+    checksum: "sha512:{{ caddy_tarball_sha512 }}"
     owner: root
     group: root
     mode: "0644"
