@@ -45,7 +45,7 @@
   ansible.builtin.get_url:
     url: "{{ caddy_download_url }}"
     dest: "{{ caddy_src_dir }}/{{ caddy_tarball_name }}"
-    checksum: "sha256:{{ caddy_tarball_sha256 }}"
+    checksum: "sha512:{{ caddy_tarball_sha256 }}"
     owner: root
     group: root
     mode: "0644"
