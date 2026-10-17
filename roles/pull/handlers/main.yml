@@ -1,0 +1,6 @@
+---
+- name: Restart the ansible-pull timer
+  ansible.builtin.systemd:
+    name: ansible-pull.timer
+    state: restarted
+    daemon_reload: true

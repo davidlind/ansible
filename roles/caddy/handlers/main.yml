@@ -1,0 +1,14 @@
+---
+# Handlers run in definition order, so validate always precedes restart
+# when both are notified (a failed validation aborts the restart).
+
+- name: validate caddyfile
+  ansible.builtin.command:
+    cmd: "{{ caddy_binary }} validate --config {{ caddy_config_dir }}/Caddyfile --adapter caddyfile"
+  changed_when: false
+
+- name: restart caddy
+  ansible.builtin.systemd:
+    name: caddy
+    state: restarted
+    daemon_reload: true

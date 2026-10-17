@@ -1,0 +1,13 @@
+---
+- name: Converge the Gitea host (ansible-pull, local connection)
+  hosts: all
+  become: true
+  # ansible-pull always invokes the playbook with `-c local`; stating it
+  # here too keeps direct `ansible-playbook` runs working regardless of
+  # how the host was reached (cloud-init, manual, timer).
+  connection: local
+  roles:
+    - role: common
+    - role: caddy
+    - role: gitea
+    - role: pull

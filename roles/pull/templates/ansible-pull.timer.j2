@@ -1,0 +1,12 @@
+[Unit]
+Description=Run ansible-pull periodically
+
+[Timer]
+OnBootSec={{ ansible_pull_boot_delay }}
+OnUnitActiveSec={{ ansible_pull_interval }}
+RandomizedDelaySec={{ ansible_pull_random_delay }}
+# Catch up on runs missed while the host was off
+Persistent=true
+
+[Install]
+WantedBy=timers.target

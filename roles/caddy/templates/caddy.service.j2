@@ -1,0 +1,35 @@
+[Unit]
+Description=Caddy web server
+Documentation=https://caddyserver.com/docs/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ caddy_user }}
+Group={{ caddy_group }}
+WorkingDirectory={{ caddy_home }}
+ExecStart={{ caddy_binary }} run --environ --config {{ caddy_config_dir }}/Caddyfile --adapter caddyfile
+ExecReload={{ caddy_binary }} reload --config {{ caddy_config_dir }}/Caddyfile --adapter caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+Restart=on-failure
+RestartSec=10s
+
+# Bind 80/443 as the unprivileged caddy user
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

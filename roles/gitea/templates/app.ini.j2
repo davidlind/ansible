@@ -1,0 +1,58 @@
+; Managed by Ansible (ansible-pull) — local changes will be overwritten.
+;
+; Secrets are not stored here: Gitea reads them from files in
+; {{ gitea_secrets_dir }} through the *_URI keys, which is why this
+; file can stay 0640 root:{{ gitea_group }} and Gitea never needs to
+; rewrite it.
+
+APP_NAME = {{ gitea_title }}
+RUN_MODE = prod
+RUN_USER = {{ gitea_user }}
+
+[database]
+DB_TYPE = sqlite3
+PATH = {{ gitea_home }}/data/gitea.db
+
+[repository]
+ROOT = {{ gitea_home }}/data/gitea-repositories
+
+[server]
+DOMAIN = {{ gitea_domain }}
+HTTP_ADDR = 127.0.0.1
+HTTP_PORT = {{ gitea_http_port }}
+PROTOCOL = http
+ROOT_URL = https://{{ gitea_domain }}/
+APP_DATA_PATH = {{ gitea_home }}/data
+TMP_PATH = {{ gitea_home }}/data/tmp
+DISABLE_SSH = false
+START_SSH_SERVER = true
+SSH_LISTEN_ADDR = 0.0.0.0
+SSH_LISTEN_PORT = {{ gitea_ssh_port }}
+SSH_PORT = {{ gitea_ssh_port }}
+LFS_START_SERVER = true
+LFS_CONTENT_PATH = {{ gitea_home }}/data/lfs
+LFS_JWT_SECRET_URI = file:{{ gitea_secrets_dir }}/lfs_jwt_secret
+
+[session]
+PROVIDER = file
+PROVIDER_CONFIG = {{ gitea_home }}/data/sessions
+COOKIE_SECURE = true
+
+[service]
+DISABLE_REGISTRATION = {{ gitea_disable_registration | bool | lower }}
+REQUIRE_SIGNIN_VIEW = {{ gitea_require_signin_view | bool | lower }}
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY_URI = file:{{ gitea_secrets_dir }}/secret_key
+INTERNAL_TOKEN_URI = file:{{ gitea_secrets_dir }}/internal_token
+; Gitea sits behind Caddy on 127.0.0.1 — trust it for client IPs.
+REVERSE_PROXY_LIMIT = 1
+REVERSE_PROXY_TRUSTED = 127.0.0.1
+
+[oauth2]
+JWT_SECRET_URI = file:{{ gitea_secrets_dir }}/oauth2_jwt_secret
+
+[log]
+MODE = console
+LEVEL = Info

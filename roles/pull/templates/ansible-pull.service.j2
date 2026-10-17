@@ -1,0 +1,14 @@
+[Unit]
+Description=ansible-pull (converge this host from the playbook repo)
+Documentation=file://{{ ansible_pull_dir }}/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# The runner lives inside the checkout, so every pull also updates the
+# code that performs the next pull. It reads /etc/ansible-pull.conf and
+# exits immediately when another run is already in progress.
+ExecStart={{ ansible_pull_dir }}/scripts/ansible-pull-run.sh
+Nice=10
+TimeoutStartSec=0

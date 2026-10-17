@@ -1,0 +1,19 @@
+---
+# Secrets for this deployment.
+#
+#   1. Replace the placeholder password with something >= 12 characters.
+#   2. Encrypt before pushing:
+#        ansible-vault encrypt group_vars/vault.yml
+#   3. Put the vault password on the VM before the first pull — via
+#      cloud-init write_files (see README) or manually:
+#        install -d -m 0700 /etc/ansible-pull
+#        install -m 0600 vault-password-file /etc/ansible-pull/vault-password-file
+#
+#      The runner picks the file up automatically
+#      (ansible_pull_vault_password_file in group_vars/all.yml).
+#
+# The playbook refuses to run while the placeholder is in place.
+
+vault_gitea_admin_user: admin
+vault_gitea_admin_password: "CHANGE_ME_please_set_a_real_password"
+vault_gitea_admin_email: "admin@gitea.local"

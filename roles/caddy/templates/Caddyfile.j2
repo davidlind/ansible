@@ -1,0 +1,12 @@
+# Managed by Ansible (ansible-pull) — local changes will be overwritten.
+#
+# HTTPS is terminated here with Caddy's internal local CA. The root CA
+# lives in {{ caddy_home }}/.local/share/caddy/pki/authorities/local/root.crt
+# and must be trusted on client machines (see README).
+
+{% for site in gitea_site_addresses %}
+{{ site }} {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:{{ gitea_http_port }}
+}
+{% endfor %}

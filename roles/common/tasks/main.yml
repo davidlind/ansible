@@ -1,0 +1,39 @@
+---
+- name: Assert a supported CPU architecture
+  ansible.builtin.assert:
+    that: ansible_architecture in gitea_arch_map
+    fail_msg: >-
+      Unsupported architecture "{{ ansible_architecture }}". Add it to
+      gitea_arch_map/caddy_arch_map in group_vars/all.yml.
+
+- name: Install base packages
+  ansible.builtin.dnf:
+    name:
+      - ca-certificates
+      - curl
+      - firewalld
+      - git                 # Gitea shells out to git for all repo operations
+      - policycoreutils-python-utils   # semanage, for SELinux file contexts
+      - python3-libselinux  # restorecon bindings for ansible.posix.restorecon
+      - sqlite              # CLI for poking at the SQLite database
+      - tar
+    state: present
+
+- name: Ensure firewalld is running
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Open HTTP, HTTPS and Gitea SSH ports
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 80/tcp    # Caddy: automatic http -> https redirect
+    - 443/tcp   # Caddy: HTTPS
+    - "{{ gitea_ssh_port }}/tcp"  # Gitea built-in SSH (git clone over SSH)
+
+# Port 22 is intentionally untouched — that stays your SSH access.

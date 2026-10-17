@@ -1,0 +1,86 @@
+---
+# ─── Site identity ────────────────────────────────────────────────────────
+# Must resolve to this VM on every client (local DNS or /etc/hosts).
+gitea_domain: gitea.lan
+gitea_title: "Gitea"
+
+# Addresses Caddy serves; these end up in the certificate SANs.
+# Add the VM's IP here (e.g. 192.168.1.50) if you also want
+# https://<ip> to validate.
+gitea_site_addresses:
+  - "{{ gitea_domain }}"
+
+# ─── Ports ────────────────────────────────────────────────────────────────
+gitea_http_port: 3000   # Gitea HTTP — loopback only, reached via Caddy
+gitea_ssh_port: 2222    # Gitea built-in SSH server (ssh://git@host:2222)
+
+# ─── Versions ─────────────────────────────────────────────────────────────
+# Bump these and push: the next ansible-pull run downloads (checksum
+# verified), installs and restarts the new versions.
+gitea_version: "28.1.0"
+caddy_version: "2.11.7"
+
+gitea_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+caddy_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+gitea_arch: "{{ gitea_arch_map[ansible_architecture] }}"
+caddy_arch: "{{ caddy_arch_map[ansible_architecture] }}"
+
+gitea_download_url: "https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-{{ gitea_arch }}"
+
+caddy_tarball_name: "caddy_{{ caddy_version }}_linux_{{ caddy_arch }}.tar.gz"
+caddy_download_url: "https://github.com/caddyserver/caddy/releases/download/v{{ caddy_version }}/{{ caddy_tarball_name }}"
+caddy_checksums_url: "https://github.com/caddyserver/caddy/releases/download/v{{ caddy_version }}/caddy_{{ caddy_version }}_checksums.txt"
+
+# ─── Users & paths ────────────────────────────────────────────────────────
+gitea_user: git
+gitea_group: git
+gitea_home: /var/lib/gitea
+gitea_config_dir: /etc/gitea
+gitea_secrets_dir: /etc/gitea/secrets
+gitea_binary: /usr/local/bin/gitea
+gitea_src_dir: /usr/local/src
+
+caddy_user: caddy
+caddy_group: caddy
+caddy_home: /var/lib/caddy
+caddy_config_dir: /etc/caddy
+caddy_binary: /usr/local/bin/caddy
+caddy_src_dir: /usr/local/src
+
+# ─── Secrets ──────────────────────────────────────────────────────────────
+# Generated exactly once on the host by `gitea generate secret` (correct
+# formats are Gitea's own business) and referenced from app.ini through
+# *_URI = file:... keys. app.ini therefore never contains secrets and
+# never needs to be rewritten by Gitea.
+gitea_secret_files:
+  - { name: secret_key, kind: SECRET_KEY }         # [security] SECRET_KEY_URI
+  - { name: internal_token, kind: INTERNAL_TOKEN } # [security] INTERNAL_TOKEN_URI
+  - { name: oauth2_jwt_secret, kind: JWT_SECRET }  # [oauth2]   JWT_SECRET_URI
+  - { name: lfs_jwt_secret, kind: JWT_SECRET }     # [server]   LFS_JWT_SECRET_URI
+
+# ─── Behaviour ────────────────────────────────────────────────────────────
+gitea_disable_registration: true
+gitea_require_signin_view: false
+
+# ─── ansible-pull (periodic self-convergence) ─────────────────────────────
+# The playbook installs the runner, its configuration and an hourly systemd
+# timer, so a host that has run this playbook once keeps converging from
+# this repository on its own (the timer runs `ansible-pull`).
+# Set the URL to where THIS repository is hosted — the same URL you put in
+# the cloud-init `ansible.pull.url`.
+ansible_pull_repo_url: "https://git.example.com/ops/ansible-pull.git"
+ansible_pull_branch: "main"
+ansible_pull_dir: "/opt/ansible-pull"
+ansible_pull_vault_password_file: "/etc/ansible-pull/vault-password-file"
+ansible_pull_boot_delay: "10min"
+ansible_pull_interval: "1h"
+ansible_pull_random_delay: "10min"
+
+# ─── Admin account (see group_vars/vault.yml) ─────────────────────────────
+gitea_admin_user: "{{ vault_gitea_admin_user }}"
+gitea_admin_password: "{{ vault_gitea_admin_password }}"
+gitea_admin_email: "{{ vault_gitea_admin_email }}"

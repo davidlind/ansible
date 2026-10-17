@@ -1,0 +1,33 @@
+[Unit]
+Description=Gitea (Git with a cup of tea)
+Documentation=https://docs.gitea.com/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ gitea_user }}
+Group={{ gitea_group }}
+UMask=0027
+WorkingDirectory={{ gitea_home }}
+Environment=USER={{ gitea_user }}
+Environment=HOME={{ gitea_home }}
+Environment=GITEA_WORK_DIR={{ gitea_home }}
+ExecStart={{ gitea_binary }} web --config {{ gitea_config_dir }}/app.ini
+Restart=always
+RestartSec=10s
+TimeoutStopSec=30s
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

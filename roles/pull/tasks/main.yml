@@ -1,0 +1,55 @@
+---
+# Self-hosting: this role installs the machinery that re-runs this very
+# playbook. Whatever performed the first convergence (cloud-init's ansible
+# module, a manual ansible-playbook run, ...) leaves behind a host that
+# keeps converging from this repository on its own.
+- name: Assert the pull repository URL is configured
+  ansible.builtin.assert:
+    that:
+      - ansible_pull_repo_url | default('') is match('^(https?|ssh|git)://|^git@')
+      - "'example.com' not in ansible_pull_repo_url"
+    fail_msg: >-
+      Set ansible_pull_repo_url in group_vars/all.yml to the URL of this
+      repository (and push the repo there).
+
+- name: Check out {{ ansible_pull_dir }}
+  ansible.builtin.git:
+    repo: "{{ ansible_pull_repo_url }}"
+    dest: "{{ ansible_pull_dir }}"
+    version: "{{ ansible_pull_branch }}"
+    # The checkout is a deployment artifact: it is produced by this task and
+    # by `ansible-pull` itself, never edited in place.
+    force: true
+
+- name: Install the ansible-pull configuration
+  ansible.builtin.template:
+    src: ansible-pull.conf.j2
+    dest: /etc/ansible-pull.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the ansible-pull service
+  ansible.builtin.template:
+    src: ansible-pull.service.j2
+    dest: /etc/systemd/system/ansible-pull.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the ansible-pull timer
+
+- name: Install the ansible-pull timer
+  ansible.builtin.template:
+    src: ansible-pull.timer.j2
+    dest: /etc/systemd/system/ansible-pull.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the ansible-pull timer
+
+- name: Enable and start the ansible-pull timer
+  ansible.builtin.systemd:
+    name: ansible-pull.timer
+    state: started
+    enabled: true
+    daemon_reload: true

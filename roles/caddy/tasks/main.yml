@@ -1,0 +1,105 @@
+---
+- name: Create the caddy group
+  ansible.builtin.group:
+    name: "{{ caddy_group }}"
+    system: true
+
+- name: Create the caddy user
+  ansible.builtin.user:
+    name: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    system: true
+    home: "{{ caddy_home }}"
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create Caddy directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ caddy_config_dir }}", owner: root, group: "{{ caddy_group }}", mode: "0750" }
+    - { path: "{{ caddy_home }}", owner: "{{ caddy_user }}", group: "{{ caddy_group }}", mode: "0755" }
+    - { path: "{{ caddy_src_dir }}", owner: root, group: root, mode: "0755" }
+    - { path: "{{ caddy_src_dir }}/caddy-{{ caddy_version }}", owner: root, group: root, mode: "0755" }
+
+- name: Fetch Caddy release checksums
+  ansible.builtin.uri:
+    url: "{{ caddy_checksums_url }}"
+    return_content: true
+  register: caddy_checksums
+  changed_when: false
+
+- name: Pick the checksum of the Caddy tarball
+  ansible.builtin.set_fact:
+    caddy_tarball_sha256: >-
+      {{ (caddy_checksums.content.splitlines()
+          | select('search', caddy_tarball_name | regex_escape)
+          | first
+          | regex_search('^[a-fA-F0-9]{64}')) }}
+
+- name: Download Caddy {{ caddy_version }}
+  ansible.builtin.get_url:
+    url: "{{ caddy_download_url }}"
+    dest: "{{ caddy_src_dir }}/{{ caddy_tarball_name }}"
+    checksum: "sha256:{{ caddy_tarball_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unpack Caddy
+  ansible.builtin.unarchive:
+    src: "{{ caddy_src_dir }}/{{ caddy_tarball_name }}"
+    dest: "{{ caddy_src_dir }}/caddy-{{ caddy_version }}"
+    remote_src: true
+    creates: "{{ caddy_src_dir }}/caddy-{{ caddy_version }}/caddy"
+
+- name: Install the Caddy binary
+  ansible.builtin.copy:
+    src: "{{ caddy_src_dir }}/caddy-{{ caddy_version }}/caddy"
+    dest: "{{ caddy_binary }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart caddy
+
+- name: Label the Caddy binary for SELinux
+  ansible.posix.sefcontext:
+    target: "{{ caddy_binary }}"
+    setype: bin_t
+    state: present
+
+- name: Apply the SELinux label to the Caddy binary
+  ansible.posix.restorecon:
+    path: "{{ caddy_binary }}"
+
+- name: Write the Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ caddy_config_dir }}/Caddyfile"
+    owner: root
+    group: "{{ caddy_group }}"
+    mode: "0640"
+  notify:
+    - validate caddyfile
+    - restart caddy
+
+- name: Install the Caddy systemd unit
+  ansible.builtin.template:
+    src: caddy.service.j2
+    dest: /etc/systemd/system/caddy.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart caddy
+
+- name: Enable and start Caddy
+  ansible.builtin.systemd:
+    name: caddy
+    state: started
+    enabled: true
+    daemon_reload: true

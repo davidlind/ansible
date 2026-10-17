@@ -1,0 +1,166 @@
+---
+- name: Ensure the admin password has been set
+  ansible.builtin.assert:
+    that:
+      - (vault_gitea_admin_password | default('')) is match('.{12,}')
+      - "'CHANGE_ME' not in (vault_gitea_admin_password | default(''))"
+    fail_msg: >-
+      group_vars/vault.yml still holds the placeholder admin password.
+      Set a real password (>= 12 characters), then run
+      "ansible-vault encrypt group_vars/vault.yml" and push.
+
+- name: Create the git group
+  ansible.builtin.group:
+    name: "{{ gitea_group }}"
+    system: true
+
+- name: Create the git user
+  ansible.builtin.user:
+    name: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    system: true
+    home: "{{ gitea_home }}"
+    create_home: false
+    # A real shell: required for git hooks and as a fallback when the
+    # built-in SSH server is ever disabled in favour of system sshd.
+    shell: /bin/bash
+
+- name: Create Gitea directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ gitea_config_dir }}", owner: root, group: "{{ gitea_group }}", mode: "0750" }
+    - { path: "{{ gitea_secrets_dir }}", owner: root, group: "{{ gitea_group }}", mode: "0750" }
+    - { path: "{{ gitea_home }}", owner: "{{ gitea_user }}", group: "{{ gitea_group }}", mode: "0750" }
+    - { path: "{{ gitea_home }}/data", owner: "{{ gitea_user }}", group: "{{ gitea_group }}", mode: "0750" }
+    - { path: "{{ gitea_src_dir }}", owner: root, group: root, mode: "0755" }
+
+# ── Binary ────────────────────────────────────────────────────────────────
+- name: Fetch the Gitea download checksum
+  ansible.builtin.uri:
+    url: "{{ gitea_download_url }}.sha256"
+    return_content: true
+  register: gitea_sha256_file
+  changed_when: false
+
+- name: Download Gitea {{ gitea_version }}
+  ansible.builtin.get_url:
+    url: "{{ gitea_download_url }}"
+    dest: "{{ gitea_src_dir }}/gitea-{{ gitea_version }}-linux-{{ gitea_arch }}"
+    checksum: "sha256:{{ gitea_sha256_file.content.split()[0] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the Gitea binary
+  ansible.builtin.copy:
+    src: "{{ gitea_src_dir }}/gitea-{{ gitea_version }}-linux-{{ gitea_arch }}"
+    dest: "{{ gitea_binary }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart gitea
+
+- name: Label the Gitea binary for SELinux
+  ansible.posix.sefcontext:
+    target: "{{ gitea_binary }}"
+    setype: bin_t
+    state: present
+
+- name: Apply the SELinux label to the Gitea binary
+  ansible.posix.restorecon:
+    path: "{{ gitea_binary }}"
+
+# ── Secrets ───────────────────────────────────────────────────────────────
+# Generated exactly once, by Gitea itself, so the formats (base64 JWT
+# secrets, internal token) are always right. app.ini references them via
+# *_URI = file:... keys, which keeps app.ini free of secrets and free of
+# any Gitea-side rewriting — the whole file stays Ansible-owned.
+# `gitea generate secret` is a standalone subcommand: it touches neither
+# config file, work path nor environment — it only prints a fresh value.
+- name: Generate Gitea secrets (once)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ gitea_binary }} generate secret {{ item.kind }} > {{ gitea_secrets_dir }}/{{ item.name }}
+  args:
+    creates: "{{ gitea_secrets_dir }}/{{ item.name }}"
+  loop: "{{ gitea_secret_files }}"
+
+- name: Lock down the Gitea secret files
+  ansible.builtin.file:
+    path: "{{ gitea_secrets_dir }}/{{ item.name }}"
+    state: file
+    owner: root
+    group: "{{ gitea_group }}"
+    mode: "0640"
+  loop: "{{ gitea_secret_files }}"
+
+# ── Config & service ──────────────────────────────────────────────────────
+- name: Write the Gitea configuration
+  ansible.builtin.template:
+    src: app.ini.j2
+    dest: "{{ gitea_config_dir }}/app.ini"
+    owner: root
+    group: "{{ gitea_group }}"
+    mode: "0640"
+  notify: restart gitea
+
+- name: Install the Gitea systemd unit
+  ansible.builtin.template:
+    src: gitea.service.j2
+    dest: /etc/systemd/system/gitea.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart gitea
+
+- name: Enable and start Gitea
+  ansible.builtin.systemd:
+    name: gitea
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: "Wait for Gitea to listen on 127.0.0.1:{{ gitea_http_port }}"
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ gitea_http_port }}"
+    timeout: 120
+
+# ── Admin account ─────────────────────────────────────────────────────────
+# Runs as the git user so every SQLite file it touches keeps git ownership.
+# Idempotent: "already exist" on subsequent runs.
+- name: Create the initial admin user
+  ansible.builtin.command:
+    argv:
+      - "{{ gitea_binary }}"
+      - --config
+      - "{{ gitea_config_dir }}/app.ini"
+      - admin
+      - user
+      - create
+      - --username
+      - "{{ gitea_admin_user }}"
+      - --password
+      - "{{ gitea_admin_password }}"
+      - --email
+      - "{{ gitea_admin_email }}"
+      - --admin
+      - --must-change-password=false
+  environment:
+    GITEA_WORK_DIR: "{{ gitea_home }}"
+  become: true
+  become_user: "{{ gitea_user }}"
+  register: gitea_admin_create
+  changed_when: >-
+    'already exist' not in
+    ((gitea_admin_create.stdout | default('')) ~ (gitea_admin_create.stderr | default('')))
+  failed_when:
+    - gitea_admin_create.rc != 0
+    - "'already exist' not in ((gitea_admin_create.stdout | default('')) ~ (gitea_admin_create.stderr | default('')))"
+  no_log: true
